@@ -1,3 +1,11 @@
+export function storedObject<T>(Value: unknown): T | null {
+	return typeof Value === 'object' && Value !== null && !Array.isArray(Value) ? (Value as T) : null;
+}
+
+export function storedIds(Value: unknown): number[] {
+	return Array.isArray(Value) ? Value.filter((Id): Id is number => typeof Id === 'number') : [];
+}
+
 export class BoundedStore<T> {
 	constructor(
 		private readonly Prefix: string,
@@ -7,7 +15,7 @@ export class BoundedStore<T> {
 	async get(Id: number): Promise<T | null> {
 		const Key = this.keyFor(Id);
 		const Stored = await chrome.storage.local.get(Key);
-		return (Stored[Key] as T | undefined) ?? null;
+		return storedObject<T>(Stored[Key]);
 	}
 
 	async getMany(Ids: number[]): Promise<Map<number, T>> {
@@ -15,8 +23,8 @@ export class BoundedStore<T> {
 		if (Ids.length === 0) return Found;
 		const Stored = await chrome.storage.local.get(Ids.map((Id) => this.keyFor(Id)));
 		for (const Id of Ids) {
-			const Value = Stored[this.keyFor(Id)] as T | undefined;
-			if (Value !== undefined) Found.set(Id, Value);
+			const Value = storedObject<T>(Stored[this.keyFor(Id)]);
+			if (Value) Found.set(Id, Value);
 		}
 		return Found;
 	}
@@ -24,8 +32,7 @@ export class BoundedStore<T> {
 	async put(Id: number, Value: T): Promise<void> {
 		const IndexKey = `${this.Prefix}Index`;
 		const Stored = await chrome.storage.local.get(IndexKey);
-		const Index = (Stored[IndexKey] as number[] | undefined) ?? [];
-		const Next = [Id, ...Index.filter((Existing) => Existing !== Id)];
+		const Next = [Id, ...storedIds(Stored[IndexKey]).filter((Existing) => Existing !== Id)];
 		const Evicted = Next.splice(this.Max);
 		await chrome.storage.local.set({ [this.keyFor(Id)]: Value, [IndexKey]: Next });
 		if (Evicted.length > 0) await chrome.storage.local.remove(Evicted.map((Old) => this.keyFor(Old)));
