@@ -4,7 +4,7 @@ import type { SocialLink } from './RobloxApi';
 
 type Anchors = ReadonlyArray<readonly [Value: number, Score: number]>;
 
-export const EstimatorVersion = 8;
+export const EstimatorVersion = 9;
 
 export interface GroupInfo {
 	GroupId: number;
@@ -49,6 +49,8 @@ export interface UgcInfo {
 	TopFavorites: number;
 	TopUrl: string | null;
 	CreatorName: string;
+	CreatorRole?: string | null;
+	SourceCount?: number;
 	SampledCount: number;
 	SampledFavorites: number;
 	HasMore: boolean;
@@ -136,6 +138,8 @@ const LinkedSocialBonus = 5;
 const MaxLinkedSocialBonus = 10;
 const StaffRankFloor = 200;
 const MemberRankCeiling = 4;
+const GroupUgcOwnerWeight = 0.85;
+const GroupUgcRoleWeight = 0.7;
 const HandPickedRoleMax = 100;
 const FormerRolePattern = /\b(?:ex|former|retired)\b/i;
 const CoOwnerRankFloor = 200;
@@ -318,7 +322,10 @@ export class ReasonEstimator {
 
 	private ugc(Summary: UgcInfo, Kind: 'UgcCreator' | 'GroupUgcCreator'): ReasonCandidate | null {
 		if (!Summary.TopName) return null;
-		const Weight = Kind === 'UgcCreator' ? 1 : 0.85;
+		const ViaRole = Kind === 'GroupUgcCreator' && !!Summary.CreatorRole;
+		const Weight = Kind === 'UgcCreator' ? 1 : ViaRole ? GroupUgcRoleWeight : GroupUgcOwnerWeight;
+		const OtherGroups = (Summary.SourceCount ?? 1) - 1;
+		const Where = `${Summary.CreatorName}${OtherGroups > 0 ? ` and ${OtherGroups} other group${OtherGroups === 1 ? '' : 's'}` : ''}`;
 		const Items = countLabel(Summary.SampledCount, 'catalog item', Summary.HasMore);
 		return {
 			kind: Kind,
@@ -327,9 +334,9 @@ export class ReasonEstimator {
 			summary:
 				Kind === 'UgcCreator'
 					? `${Items}, ${formatCompact(Summary.SampledFavorites)} favorites`
-					: `Owns ${Summary.CreatorName}: ${Items}, ${formatCompact(Summary.SampledFavorites)} favorites`,
+					: `${ViaRole ? `“${Summary.CreatorRole}” at` : 'Owns'} ${Where}: ${Items}, ${formatCompact(Summary.SampledFavorites)} favorites`,
 			evidence: [
-				`${Items}${Kind === 'GroupUgcCreator' ? ` from ${Summary.CreatorName}` : ''}`,
+				`${Items}${Kind === 'GroupUgcCreator' ? ` from ${Where}` : ''}`,
 				`${formatCompact(Summary.SampledFavorites)} favorites across the top ${Summary.SampledCount}`,
 				`Most favorited: “${Summary.TopName}” (${formatCompact(Summary.TopFavorites)})`
 			],

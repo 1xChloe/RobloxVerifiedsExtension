@@ -18,12 +18,16 @@ import {
 	type Totals,
 	type UgcInfo
 } from './ReasonEstimator';
-import { RobloxApi, type CatalogPage, type GameDetail, type GameList, type GameListing, type Membership } from './RobloxApi';
+import { RobloxApi, type CatalogItem, type CatalogPage, type GameDetail, type GameList, type GameListing, type Membership } from './RobloxApi';
 
 const StatsFreshMs = 24 * 60 * 60 * 1000;
 const PartialStatsFreshMs = 60 * 60 * 1000;
 const RoleRecheckMs = 10 * 60 * 1000;
 const GroupListFreshMs = 12 * 60 * 60 * 1000;
+const GroupCatalogFreshMs = 24 * 60 * 60 * 1000;
+const MaxUgcGroups = 8;
+const MaxCatalogFetches = 4;
+const UgcRolePattern = /\bugcs?\b/i;
 const FailureBackoffMs = 60_000;
 const MaxContributionGroups = 25;
 const QuickGroupFetches = 3;
@@ -63,6 +67,11 @@ interface StoredGroupList {
 	SavedAt: number;
 }
 
+interface StoredCatalog {
+	Page: CatalogPage;
+	SavedAt: number;
+}
+
 interface Build {
 	Latest: ApiUserStats | null;
 	LatestAt: number | null;
@@ -76,6 +85,7 @@ export class LocalStats {
 	private readonly FailedAt = new Map<number, number>();
 	private readonly StatsStore = new BoundedStore<StoredStats>('LocalStats', 200);
 	private readonly GroupStore = new BoundedStore<StoredGroupList>('GroupGames', 400);
+	private readonly CatalogStore = new BoundedStore<StoredCatalog>('GroupCatalog', 400);
 
 	async get(UserId: number, BadgeRemoved: boolean): Promise<LocalStatsResult> {
 		const Stored = await this.current(UserId, await this.StatsStore.get(UserId), BadgeRemoved);
@@ -308,11 +318,27 @@ export class LocalStats {
 
 		await Quick;
 		await fetchLists(Missing.slice(QuickGroupFetches));
-		const OwnedGroup = Groups.filter((Group) => Group.Tier === 'Owner').sort((A, B) => B.MemberCount - A.MemberCount)[0];
-		if (OwnedGroup && Ugc.SampledCount === 0 && !this.Api.isCoolingDown('Catalog')) {
-			const Page = await settle(this.Api.catalog('Group', OwnedGroup.GroupId), null);
-			if (Page) GroupUgc = toUgc(Page, OwnedGroup.Name);
+		const UgcGroups = Groups.filter((Group) => Group.Tier === 'Owner' || (isContributionTier(Group.Tier) && UgcRolePattern.test(Group.RoleName)))
+			.sort((A, B) => Number(A.Tier === 'Owner') - Number(B.Tier === 'Owner') || B.MemberCount - A.MemberCount)
+			.slice(0, MaxUgcGroups);
+		const Catalogs = await this.CatalogStore.getMany(UgcGroups.map((Group) => Group.GroupId));
+		const StaleCatalogs = UgcGroups.filter((Group) => Date.now() - (Catalogs.get(Group.GroupId)?.SavedAt ?? 0) > GroupCatalogFreshMs).slice(
+			0,
+			MaxCatalogFetches
+		);
+		for (const Group of StaleCatalogs) {
+			if (this.Api.isCoolingDown('Catalog')) break;
+			const Page = await settle(this.Api.catalog('Group', Group.GroupId), null);
+			if (!Page) continue;
+			const Saved = { Page, SavedAt: Date.now() };
+			Catalogs.set(Group.GroupId, Saved);
+			await this.CatalogStore.put(Group.GroupId, Saved);
 		}
+		const CatalogSources = UgcGroups.flatMap((Group) => {
+			const Saved = Catalogs.get(Group.GroupId);
+			return Saved ? [{ Page: Saved.Page, Group }] : [];
+		});
+		if (CatalogSources.length > 0 || UgcGroups.length === 0) GroupUgc = toGroupUgc(CatalogSources);
 		const FinalComplete = Failed === 0 && UgcKnown;
 		const Final = await assemble(FinalComplete);
 		const SavedAt = Date.now();
@@ -366,12 +392,34 @@ function toUgc(Page: CatalogPage | null, FallbackCreator: string): UgcInfo {
 	return {
 		TopName: Top?.Name ?? null,
 		TopFavorites: Top?.Favorites ?? 0,
-		TopUrl: Top ? (Top.ItemType === 'Bundle' ? `https://www.roblox.com/bundles/${Top.Id}` : `https://www.roblox.com/catalog/${Top.Id}`) : null,
+		TopUrl: Top ? itemUrl(Top) : null,
 		CreatorName: Top?.CreatorName || FallbackCreator,
 		SampledCount: Items.length,
 		SampledFavorites: sum(Items, (Item) => Item.Favorites),
 		HasMore: Page?.HasMore ?? false
 	};
+}
+
+function toGroupUgc(Sources: Array<{ Page: CatalogPage; Group: GroupInfo }>): UgcInfo {
+	const Entries = Sources.flatMap((Source) => Source.Page.Items.map((Item) => ({ Item, Group: Source.Group }))).sort(
+		(A, B) => B.Item.Favorites - A.Item.Favorites
+	);
+	const Top = Entries[0];
+	return {
+		TopName: Top?.Item.Name ?? null,
+		TopFavorites: Top?.Item.Favorites ?? 0,
+		TopUrl: Top ? itemUrl(Top.Item) : null,
+		CreatorName: Top ? Top.Item.CreatorName || Top.Group.Name : '',
+		CreatorRole: Top && Top.Group.Tier !== 'Owner' ? Top.Group.RoleName : null,
+		SourceCount: Sources.filter((Source) => Source.Page.Items.length > 0).length,
+		SampledCount: Entries.length,
+		SampledFavorites: sum(Entries, (Entry) => Entry.Item.Favorites),
+		HasMore: Sources.some((Source) => Source.Page.HasMore)
+	};
+}
+
+function itemUrl(Item: CatalogItem): string {
+	return Item.ItemType === 'Bundle' ? `https://www.roblox.com/bundles/${Item.Id}` : `https://www.roblox.com/catalog/${Item.Id}`;
 }
 
 function totalsOf(Games: GameInfo[], Truncated: boolean): Totals {
