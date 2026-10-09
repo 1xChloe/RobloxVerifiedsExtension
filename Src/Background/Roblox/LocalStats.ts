@@ -1,4 +1,5 @@
 import type { ApiUserStats } from '../../Shared/ApiTypes';
+import type { LocalStatsMode } from '../../Shared/Messages';
 import { BoundedStore } from '../BoundedStore';
 import {
 	EstimatorVersion,
@@ -23,6 +24,7 @@ import { RobloxApi, type CatalogItem, type CatalogPage, type GameDetail, type Ga
 const StatsFreshMs = 24 * 60 * 60 * 1000;
 const PartialStatsFreshMs = 60 * 60 * 1000;
 const RoleRecheckMs = 10 * 60 * 1000;
+const ForcedRefreshMs = 60 * 1000;
 const GroupListFreshMs = 12 * 60 * 60 * 1000;
 const GroupCatalogFreshMs = 24 * 60 * 60 * 1000;
 const MaxUgcGroups = 8;
@@ -87,8 +89,11 @@ export class LocalStats {
 	private readonly GroupStore = new BoundedStore<StoredGroupList>('GroupGames', 400);
 	private readonly CatalogStore = new BoundedStore<StoredCatalog>('GroupCatalog', 400);
 
-	async get(UserId: number, BadgeRemoved: boolean): Promise<LocalStatsResult> {
+	async get(UserId: number, BadgeRemoved: boolean, Mode: LocalStatsMode = 'Normal'): Promise<LocalStatsResult> {
 		const Stored = await this.current(UserId, await this.StatsStore.get(UserId), BadgeRemoved);
+		if (Mode === 'Peek' && !this.Builds.has(UserId)) {
+			return { Stats: Stored?.Stats ?? null, Pending: false, Partial: false, UpdatedAt: Stored?.SavedAt ?? null };
+		}
 		const Running = this.Builds.get(UserId);
 		if (Running) {
 			if (Running.Complete || !Stored) {
@@ -96,7 +101,14 @@ export class LocalStats {
 			}
 			return { Stats: Stored.Stats, Pending: true, Partial: false, UpdatedAt: Stored.SavedAt };
 		}
-		const FreshFor = Stored?.Partial ? PartialStatsFreshMs : Stored?.Input && hasUncheckedRoles(Stored.Input.Groups) ? RoleRecheckMs : StatsFreshMs;
+		const FreshFor =
+			Mode === 'Force'
+				? ForcedRefreshMs
+				: Stored?.Partial
+					? PartialStatsFreshMs
+					: Stored?.Input && hasUncheckedRoles(Stored.Input.Groups)
+						? RoleRecheckMs
+						: StatsFreshMs;
 		const RecentlyFailed = Date.now() - (this.FailedAt.get(UserId) ?? 0) < FailureBackoffMs;
 		if ((Stored && Date.now() - Stored.SavedAt < FreshFor) || RecentlyFailed) {
 			return { Stats: Stored?.Stats ?? null, Pending: false, Partial: false, UpdatedAt: Stored?.SavedAt ?? null };

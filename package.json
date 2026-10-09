@@ -1,6 +1,6 @@
 {
 	"name": "robloxverifieds-extension",
-	"version": "1.0.11",
+	"version": "1.0.12",
 	"private": true,
 	"description": "Verified-badge history and why accounts are verified, built into Roblox's own pages.",
 	"license": "SEE LICENSE IN LICENSE",

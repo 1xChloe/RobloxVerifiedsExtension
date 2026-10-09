@@ -1,11 +1,13 @@
 import type { ApiUser, ApiUserDetail, ApiUserStats, SubmitStatus } from './ApiTypes';
 
+export type LocalStatsMode = 'Normal' | 'Force' | 'Peek';
+
 export interface MessageMap {
 	LookupUsers: { Request: { UserIds: number[] }; Response: { Users: Record<number, ApiUser | null> } };
 	GetUser: { Request: { UserId: number }; Response: { User: ApiUserDetail | null } };
 	GetCachedUser: { Request: { UserId: number }; Response: { User: ApiUserDetail | null } };
 	GetLocalStats: {
-		Request: { UserId: number; BadgeRemoved: boolean };
+		Request: { UserId: number; BadgeRemoved: boolean; Mode?: LocalStatsMode };
 		Response: { Stats: ApiUserStats | null; Pending: boolean; Partial: boolean; UpdatedAt: number | null };
 	};
 	ReportSightings: { Request: { UserIds: number[] }; Response: { Queued: number } };

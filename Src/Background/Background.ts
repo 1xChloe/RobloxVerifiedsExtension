@@ -28,7 +28,7 @@ const Handlers: { [T in MessageType]: Handler<T> } = {
 		return { User };
 	},
 	GetCachedUser: async ({ UserId }) => ({ User: (await Details.get(UserId))?.User ?? null }),
-	GetLocalStats: ({ UserId, BadgeRemoved }) => Stats.get(UserId, BadgeRemoved),
+	GetLocalStats: ({ UserId, BadgeRemoved, Mode }) => Stats.get(UserId, BadgeRemoved, Mode),
 	ReportSightings: async ({ UserIds }) => {
 		const { ReportSightings } = await Settings.load();
 		return { Queued: ReportSightings ? Reporter.add(UserIds) : 0 };

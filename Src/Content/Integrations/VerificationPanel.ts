@@ -36,6 +36,7 @@ export class VerificationPanel {
 	private DetailsOpen = false;
 	private WhyVerified = true;
 	private WhyButton: HTMLButtonElement | null = null;
+	private RefreshHandler: (() => void) | null = null;
 	private readonly Details: HTMLDivElement;
 	private readonly LinkSlot = new Slot();
 	private readonly StatusSlot = new Slot();
@@ -74,6 +75,10 @@ export class VerificationPanel {
 		this.StatusSlot.set('skeleton', () => skeletonLines(['short']), false);
 		this.ReasonSlot.set('skeleton', () => this.reasonPlaceholder(null), false);
 		this.HighlightsSlot.set('skeleton', () => skeletonTiles(HighlightCount), false);
+	}
+
+	onRefresh(Handler: () => void): void {
+		this.RefreshHandler = Handler;
 	}
 
 	showError(Message: string, onRetry: () => void): void {
@@ -127,7 +132,7 @@ export class VerificationPanel {
 		this.MoreSlot.set(keyOf([Stats?.games.top, Stats?.groupGames.top, User.history]), () => this.more(User));
 		this.MoreSlot.Root.hidden = this.MoreSlot.IsEmpty || !this.Expanded;
 		this.ToggleSlot.set(this.MoreSlot.IsEmpty ? 'none' : 'toggle', () => (this.MoreSlot.IsEmpty ? null : this.expandToggle()), false);
-		this.FooterSlot.set(String(User.statsUpdatedAt), () => this.footer(User));
+		this.FooterSlot.set(`${User.statsUpdatedAt}:${User.statsPending}:${User.isBanned}`, () => this.footer(User));
 	}
 
 	private clear(): void {
@@ -401,10 +406,21 @@ export class VerificationPanel {
 
 	private footer(User: ApiUserDetail): HTMLElement {
 		const Updated = User.statsUpdatedAt ? `, last updated ${formatRelative(User.statsUpdatedAt)}` : '';
-		return createElement('p', {
-			Class: joinClasses(Rc.BodySmall, Rc.TextMuted, 'rvf-note'),
-			Text: `Stats refresh every 24 hours${Updated}.`
-		});
+		const Refresh = this.RefreshHandler;
+		return createElement('div', { Class: 'rvf-footer' }, [
+			createElement('p', {
+				Class: joinClasses(Rc.BodySmall, Rc.TextMuted, 'rvf-note'),
+				Text: `Stats refresh every 24 hours${Updated}.`
+			}),
+			Refresh &&
+				!User.isBanned &&
+				createElement('button', {
+					Class: joinClasses('rvf-text-button', Rc.BodySmall),
+					Text: User.statsPending ? 'Refreshing' : 'Refresh now',
+					Attributes: User.statsPending ? { type: 'button', disabled: '' } : { type: 'button' },
+					On: { click: Refresh }
+				})
+		]);
 	}
 
 	private subheading(Title: string, Aside?: string): HTMLHeadingElement {

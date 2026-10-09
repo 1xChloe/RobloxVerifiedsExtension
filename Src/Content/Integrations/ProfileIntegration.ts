@@ -1,5 +1,5 @@
 import type { ApiUserDetail } from '../../Shared/ApiTypes';
-import { sendMessage, type MessageResponse } from '../../Shared/Messages';
+import { sendMessage, type LocalStatsMode, type MessageResponse } from '../../Shared/Messages';
 import { Settings } from '../../Shared/Settings';
 import { RobloxClasses, RobloxPage } from '../Roblox/RobloxDom';
 import { OwnRootAttribute, createElement, joinClasses } from '../Ui/Element';
@@ -50,6 +50,7 @@ export class ProfileIntegration implements Integration {
 		});
 		this.Cards.attach(this.Pill, () => (this.User ? buildUserSummary(this.User) : []));
 		this.IconRow = createElement('span', { Class: 'rvf-name-icons', Attributes: { [OwnRootAttribute]: '' } });
+		this.Panel.onRefresh(() => this.refreshStats());
 	}
 
 	update(): void {
@@ -109,6 +110,7 @@ export class ProfileIntegration implements Integration {
 			else this.update();
 			this.renderPill();
 			if (GatherLocally) void this.loadLocalStats(UserId);
+			else if (User) void this.useNewerLocalStats(UserId);
 		} catch (Err) {
 			if (UserId !== this.UserId) return;
 			this.Panel.showError((Err as Error).message, () => {
@@ -118,10 +120,33 @@ export class ProfileIntegration implements Integration {
 		}
 	}
 
-	private async loadLocalStats(UserId: number): Promise<void> {
+	private refreshStats(): void {
+		if (this.UserId === null || !this.User || this.User.statsPending) return;
+		window.clearTimeout(this.RetryTimer);
+		this.PendingRetries = 0;
+		this.User = { ...this.User, statsPending: true };
+		this.Panel.showUser(this.User, { PollingStopped: false, ReasonPending: this.ReasonPending });
+		void this.loadLocalStats(this.UserId, 'Force');
+	}
+
+	private async useNewerLocalStats(UserId: number): Promise<void> {
 		if (!this.User) return;
 		try {
-			const Local = await sendMessage('GetLocalStats', { UserId, BadgeRemoved: !this.User.isVerified });
+			const Local = await sendMessage('GetLocalStats', { UserId, BadgeRemoved: !this.User.isVerified, Mode: 'Peek' });
+			if (UserId !== this.UserId || !this.User || !Local.Stats || !Local.UpdatedAt) return;
+			if (Local.UpdatedAt <= (this.User.statsUpdatedAt ?? 0)) return;
+			this.User = withLocalStats(this.User, Local, false);
+			this.Panel.showUser(this.User, { PollingStopped: false });
+			this.renderPill();
+		} catch {
+			return;
+		}
+	}
+
+	private async loadLocalStats(UserId: number, Mode: LocalStatsMode = 'Normal'): Promise<void> {
+		if (!this.User) return;
+		try {
+			const Local = await sendMessage('GetLocalStats', { UserId, BadgeRemoved: !this.User.isVerified, Mode });
 			if (UserId !== this.UserId || !this.User) return;
 			const KeepPolling = Local.Pending && this.PendingRetries < MaxPendingPolls;
 			this.ReasonPending = Local.Partial && KeepPolling;
