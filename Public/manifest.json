@@ -1,0 +1,34 @@
+{
+	"manifest_version": 3,
+	"name": "RobloxVerifieds",
+	"version": "0.1.0",
+	"description": "Verified-badge history and why accounts are verified, built into Roblox's own pages.",
+	"icons": {
+		"16": "Icons/Icon16.png",
+		"32": "Icons/Icon32.png",
+		"48": "Icons/Icon48.png",
+		"128": "Icons/Icon128.png"
+	},
+	"permissions": ["storage"],
+	"host_permissions": ["https://robloxverifieds.com/*", "https://*.roblox.com/*"],
+	"background": {
+		"service_worker": "Background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["https://www.roblox.com/*"],
+			"js": ["Content.js"],
+			"css": ["Content.css"],
+			"run_at": "document_end"
+		}
+	],
+	"action": {
+		"default_title": "RobloxVerifieds",
+		"default_icon": {
+			"16": "Icons/Icon16.png",
+			"32": "Icons/Icon32.png"
+		},
+		"default_popup": "Popup.html"
+	}
+}

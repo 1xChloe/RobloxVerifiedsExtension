@@ -1,0 +1,24 @@
+RobloxVerifieds for Chrome
+Copyright (c) 2026 1xChloe. All rights reserved.
+
+This code is public so anyone can check what the extension does and that it's
+safe. It is not open source.
+
+You may:
+- read the code
+- build it yourself to check it matches the released extension
+- install and use the official extension from the Chrome Web Store or this
+  repository's Releases page
+
+You may not, without written permission from the copyright holder:
+- copy, modify or redistribute the code, in whole or in part
+- publish it, or anything based on it, as an extension, app or service
+- use any part of it in another project
+- sell it or make money from it in any way
+
+GitHub's terms let people fork public repositories on GitHub. A fork is still
+covered by this license.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.

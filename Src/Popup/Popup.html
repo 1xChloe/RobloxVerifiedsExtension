@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>RobloxVerifieds</title>
+		<link rel="stylesheet" href="Popup.css" />
+	</head>
+	<body>
+		<h1>RobloxVerifieds</h1>
+
+		<div class="toggles">
+			<label class="toggle">
+				<span>Verification section in profile About</span>
+				<input id="ShowProfileSection" class="switch" type="checkbox" />
+			</label>
+			<label class="toggle">
+				<span>Icons next to profile names</span>
+				<input id="ShowNameIcons" class="switch" type="checkbox" />
+			</label>
+			<label class="toggle">
+				<span>Tags next to ex-verified, flagged and banned users</span>
+				<input id="ShowLinkBadges" class="switch" type="checkbox" />
+			</label>
+			<label class="toggle">
+				<span>Tags on friend tiles and profile cards</span>
+				<input id="ShowTileTags" class="switch" type="checkbox" />
+			</label>
+			<label class="toggle">
+				<span>
+					Help discover verified accounts
+					<small>Sends the ids of verified accounts shown on pages you visit, nothing else.</small>
+				</span>
+				<input id="ReportSightings" class="switch" type="checkbox" />
+			</label>
+		</div>
+
+		<p id="Status" class="status" role="status"></p>
+
+		<script type="module" src="Popup.js"></script>
+	</body>
+</html>

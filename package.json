@@ -1,0 +1,22 @@
+{
+	"name": "robloxverifieds-extension",
+	"version": "1.0.8",
+	"private": true,
+	"description": "Verified-badge history and why accounts are verified, built into Roblox's own pages.",
+	"license": "SEE LICENSE IN LICENSE",
+	"type": "module",
+	"scripts": {
+		"build": "node Scripts/Build.mjs",
+		"dev": "node Scripts/Build.mjs --watch",
+		"check": "tsc --noEmit",
+		"package": "npm run build && node Scripts/Package.mjs"
+	},
+	"devDependencies": {
+		"@types/chrome": "0.3.0",
+		"esbuild": "0.28.2",
+		"typescript": "6.0.3"
+	},
+	"engines": {
+		"node": ">=22.2"
+	}
+}
