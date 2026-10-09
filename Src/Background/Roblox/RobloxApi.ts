@@ -34,8 +34,16 @@ export interface Membership {
 	MemberCount: number;
 	HasVerifiedBadge: boolean;
 	IsOwner: boolean;
+	RoleId: number;
 	RoleName: string;
 	RoleRank: number;
+}
+
+export interface GroupRole {
+	Id: number;
+	Name: string;
+	Rank: number;
+	MemberCount: number;
 }
 
 export interface GameListing {
@@ -134,7 +142,7 @@ export class RobloxApi {
 		const Reply = await this.request<{
 			data: Array<{
 				group: { id: number; name: string; memberCount?: number; hasVerifiedBadge?: boolean; owner?: { userId: number } | null };
-				role: { name: string; rank: number };
+				role: { id: number; name: string; rank: number };
 			}>;
 		}>('Groups', `https://groups.roblox.com/v1/users/${UserId}/groups/roles`);
 		return Reply.data.map((Entry) => ({
@@ -143,9 +151,17 @@ export class RobloxApi {
 			MemberCount: Entry.group.memberCount ?? 0,
 			HasVerifiedBadge: Entry.group.hasVerifiedBadge ?? false,
 			IsOwner: Entry.group.owner?.userId === UserId,
+			RoleId: Entry.role.id,
 			RoleName: Entry.role.name,
 			RoleRank: Entry.role.rank
 		}));
+	}
+
+	async groupRoles(GroupId: number): Promise<GroupRole[]> {
+		const Reply = await this.request<{
+			roles: Array<{ id: number; name: string; rank: number; memberCount?: number }>;
+		}>('Groups', `https://groups.roblox.com/v1/groups/${GroupId}/roles`);
+		return Reply.roles.map((Role) => ({ Id: Role.id, Name: Role.name, Rank: Role.rank, MemberCount: Role.memberCount ?? 0 }));
 	}
 
 	userGames(UserId: number): Promise<GameList> {

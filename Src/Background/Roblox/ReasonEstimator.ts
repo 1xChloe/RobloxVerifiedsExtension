@@ -4,7 +4,7 @@ import type { SocialLink } from './RobloxApi';
 
 type Anchors = ReadonlyArray<readonly [Value: number, Score: number]>;
 
-export const EstimatorVersion = 7;
+export const EstimatorVersion = 8;
 
 export interface GroupInfo {
 	GroupId: number;
@@ -14,6 +14,7 @@ export interface GroupInfo {
 	RoleName: string;
 	RoleRank: number;
 	Tier: RoleTier;
+	RolePicked?: boolean;
 	GameCount: number;
 	GameVisits: number;
 	GamePlaying: number;
@@ -135,6 +136,8 @@ const LinkedSocialBonus = 5;
 const MaxLinkedSocialBonus = 10;
 const StaffRankFloor = 200;
 const MemberRankCeiling = 4;
+const HandPickedRoleMax = 100;
+const FormerRolePattern = /\b(?:ex|former|retired)\b/i;
 const CoOwnerRankFloor = 200;
 const AdministratorBadgeName = 'administrator';
 const SocialLinkPattern = /(youtube\.com|youtu\.be|tiktok\.com|twitch\.tv|instagram\.com|twitter\.com|x\.com\/)/i;
@@ -190,14 +193,27 @@ const PlatformNames: Record<string, string> = {
 	instagram: 'Instagram'
 };
 
-export function classifyRoleTier(Rank: number, RoleName: string, IsOwner: boolean): RoleTier {
+export function classifyRoleTier(Rank: number, RoleName: string, IsOwner: boolean, HandPicked = false): RoleTier {
 	if (IsOwner || Rank === 255) return 'Owner';
-	if (Rank <= MemberRankCeiling) return 'Member';
+	if (FormerRolePattern.test(RoleName)) return 'Member';
+	if (Rank <= MemberRankCeiling && !HandPicked) return 'Member';
 	if (CoOwnerPattern.test(RoleName) && Rank >= CoOwnerRankFloor) return 'CoOwner';
 	if (InfluencerPattern.test(RoleName)) return 'Influencer';
 	if (DeveloperPattern.test(RoleName)) return 'Developer';
 	if (StaffPattern.test(RoleName) || Rank >= StaffRankFloor) return 'Staff';
 	return 'Member';
+}
+
+export function needsRoleCheck(Rank: number, RoleName: string, IsOwner: boolean): boolean {
+	return classifyRoleTier(Rank, RoleName, IsOwner, true) !== classifyRoleTier(Rank, RoleName, IsOwner, false);
+}
+
+export function isHandPickedRole(RoleMembers: number, BiggestRoleMembers: number): boolean {
+	return RoleMembers <= HandPickedRoleMax && RoleMembers < BiggestRoleMembers;
+}
+
+export function hasUncheckedRoles(Groups: GroupInfo[]): boolean {
+	return Groups.some((Group) => Group.RolePicked === undefined && needsRoleCheck(Group.RoleRank, Group.RoleName, Group.Tier === 'Owner'));
 }
 
 export function isContributionTier(Tier: RoleTier): boolean {
@@ -403,7 +419,7 @@ export class ReasonEstimator {
 export function withCurrentTiers(Input: EstimateInput): EstimateInput {
 	const Groups = Input.Groups.map((Group) => ({
 		...Group,
-		Tier: classifyRoleTier(Group.RoleRank, Group.RoleName, Group.Tier === 'Owner')
+		Tier: classifyRoleTier(Group.RoleRank, Group.RoleName, Group.Tier === 'Owner', Group.RolePicked === true)
 	}));
 	const Contributing = Groups.filter((Group) => Group.Tier !== 'Owner' && isContributionTier(Group.Tier));
 	const Ids = new Set(Contributing.map((Group) => Group.GroupId));

@@ -4,7 +4,10 @@ import {
 	EstimatorVersion,
 	ReasonEstimator,
 	classifyRoleTier,
+	hasUncheckedRoles,
 	isContributionTier,
+	isHandPickedRole,
+	needsRoleCheck,
 	tierOrder,
 	withCurrentTiers,
 	type EstimateInput,
@@ -15,10 +18,11 @@ import {
 	type Totals,
 	type UgcInfo
 } from './ReasonEstimator';
-import { RobloxApi, type CatalogPage, type GameDetail, type GameList, type GameListing } from './RobloxApi';
+import { RobloxApi, type CatalogPage, type GameDetail, type GameList, type GameListing, type Membership } from './RobloxApi';
 
 const StatsFreshMs = 24 * 60 * 60 * 1000;
 const PartialStatsFreshMs = 60 * 60 * 1000;
+const RoleRecheckMs = 10 * 60 * 1000;
 const GroupListFreshMs = 12 * 60 * 60 * 1000;
 const FailureBackoffMs = 60_000;
 const MaxContributionGroups = 25;
@@ -82,7 +86,7 @@ export class LocalStats {
 			}
 			return { Stats: Stored.Stats, Pending: true, Partial: false, UpdatedAt: Stored.SavedAt };
 		}
-		const FreshFor = Stored?.Partial ? PartialStatsFreshMs : StatsFreshMs;
+		const FreshFor = Stored?.Partial ? PartialStatsFreshMs : Stored?.Input && hasUncheckedRoles(Stored.Input.Groups) ? RoleRecheckMs : StatsFreshMs;
 		const RecentlyFailed = Date.now() - (this.FailedAt.get(UserId) ?? 0) < FailureBackoffMs;
 		if ((Stored && Date.now() - Stored.SavedAt < FreshFor) || RecentlyFailed) {
 			return { Stats: Stored?.Stats ?? null, Pending: false, Partial: false, UpdatedAt: Stored?.SavedAt ?? null };
@@ -120,6 +124,12 @@ export class LocalStats {
 		return Rescored;
 	}
 
+	private async rolePicked(Member: Membership): Promise<boolean> {
+		const Roles = await this.Api.groupRoles(Member.GroupId);
+		const Own = Roles.find((Role) => Role.Id === Member.RoleId) ?? Roles.find((Role) => Role.Rank === Member.RoleRank && Role.Name === Member.RoleName);
+		return !!Own && isHandPickedRole(Own.MemberCount, Math.max(...Roles.map((Role) => Role.MemberCount)));
+	}
+
 	private async build(UserId: number, BadgeRemoved: boolean, Progress: Build, Previous: StoredStats | null): Promise<void> {
 		let Failed = 0;
 		const settle = async <T>(Work: Promise<T>, Fallback: T): Promise<T> => {
@@ -139,18 +149,26 @@ export class LocalStats {
 			this.Api.isCoolingDown('Catalog') ? null : settle(this.Api.catalog('User', UserId), null)
 		]);
 
-		const Groups: GroupInfo[] = Memberships.map((Member) => ({
-			GroupId: Member.GroupId,
-			Name: Member.Name,
-			MemberCount: Member.MemberCount,
-			HasVerifiedBadge: Member.HasVerifiedBadge,
-			RoleName: Member.RoleName,
-			RoleRank: Member.RoleRank,
-			Tier: classifyRoleTier(Member.RoleRank, Member.RoleName, Member.IsOwner),
-			GameCount: 0,
-			GameVisits: 0,
-			GamePlaying: 0
-		}));
+		const Groups: GroupInfo[] = await Promise.all(
+			Memberships.map(async (Member) => {
+				const RolePicked = needsRoleCheck(Member.RoleRank, Member.RoleName, Member.IsOwner)
+					? await settle<boolean | undefined>(this.rolePicked(Member), undefined)
+					: undefined;
+				return {
+					GroupId: Member.GroupId,
+					Name: Member.Name,
+					MemberCount: Member.MemberCount,
+					HasVerifiedBadge: Member.HasVerifiedBadge,
+					RoleName: Member.RoleName,
+					RoleRank: Member.RoleRank,
+					Tier: classifyRoleTier(Member.RoleRank, Member.RoleName, Member.IsOwner, RolePicked === true),
+					RolePicked,
+					GameCount: 0,
+					GameVisits: 0,
+					GamePlaying: 0
+				};
+			})
+		);
 		const LostRoles = lostRoles(Previous?.Roles ?? [], Groups);
 		const Contributing = Groups.filter((Group) => isContributionTier(Group.Tier))
 			.sort((A, B) => tierOrder(A.Tier) - tierOrder(B.Tier) || B.MemberCount - A.MemberCount)
