@@ -29,7 +29,7 @@ export class ApiClient {
 		const Users = new Map<number, ApiUser>();
 		for (let Index = 0; Index < UserIds.length; Index += MaxLookupIds) {
 			const Chunk = UserIds.slice(Index, Index + MaxLookupIds);
-			const Page = await this.request<ApiLookupResponse>(`/users?ids=${Chunk.join(',')}`);
+			const Page = await this.request<ApiLookupResponse>('/users', this.jsonBody({ ids: Chunk }));
 			for (const User of Object.values(Page.users)) Users.set(User.userId, User);
 		}
 		return Users;
@@ -37,7 +37,7 @@ export class ApiClient {
 
 	async getUser(UserId: number): Promise<ApiUserDetail | null> {
 		try {
-			return await this.request<ApiUserDetail>(`/users/${UserId}`);
+			return await this.request<ApiUserDetail>(`/users/${UserId}`, { method: 'POST' });
 		} catch (Err) {
 			if (Err instanceof ApiError && Err.Status === 404) return null;
 			throw Err;
@@ -45,25 +45,24 @@ export class ApiClient {
 	}
 
 	async submitUser(UserId: number): Promise<SubmitStatus> {
-		const Reply = await this.request<ApiSubmitResponse>('/submit', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ userId: UserId })
-		});
+		const Reply = await this.request<ApiSubmitResponse>('/submit', this.jsonBody({ userId: UserId }));
 		return Reply.status;
 	}
 
 	async reportSightings(UserIds: number[]): Promise<number> {
 		let Accepted = 0;
 		for (let Index = 0; Index < UserIds.length; Index += MaxReportIds) {
-			const Page = await this.request<ApiReportResponse>('/report', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ verifiedUserIds: UserIds.slice(Index, Index + MaxReportIds) })
-			});
+			const Page = await this.request<ApiReportResponse>(
+				'/report',
+				this.jsonBody({ verifiedUserIds: UserIds.slice(Index, Index + MaxReportIds) })
+			);
 			Accepted += Page.accepted;
 		}
 		return Accepted;
+	}
+
+	private jsonBody(Body: unknown): RequestInit {
+		return { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Body) };
 	}
 
 	private async request<T>(Path: string, Init: RequestInit = {}): Promise<T> {
