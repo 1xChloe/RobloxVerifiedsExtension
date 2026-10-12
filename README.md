@@ -4,15 +4,17 @@ Shows RobloxVerifieds info on roblox.com. Profiles get a section at the top of t
 
 It can also report verified accounts the site doesn't have yet. You can turn that off in the popup.
 
-## Installing from a release
+## Installing
 
-Grab the zip from [Releases](https://github.com/1xChloe/RobloxVerifiedsExtension/releases) and unzip it. Go to `chrome://extensions`, turn on developer mode, click "Load unpacked" and pick the unzipped folder. It won't update itself, so check back for new releases.
+Get it from the [Chrome Web Store](https://chromewebstore.google.com/detail/robloxverifieds/jepeddnenfcekkflfpnpcnlallfhiecm). That's the only official copy.
+
+Release builds only run under the store's extension ID, and the site only answers that ID, so a release zip loaded unpacked or a copy published somewhere else just shows a warning. The zips on [Releases](https://github.com/1xChloe/RobloxVerifiedsExtension/releases) are for the store upload.
 
 ## Scripts
 
 Needs Node 22.2 or newer. Run `npm install` first.
 
-- `npm run dev` builds into `Dist` and watches for changes
+- `npm run dev` builds into `Dist` and watches for changes. Dev builds skip the ID check, but the site still refuses unknown IDs, so add your unpacked ID to the site's `EXTENSION_IDS` to test against it
 - `npm run build` makes a release build
 - `npm run check` type checks
 - `npm run package` builds and zips it

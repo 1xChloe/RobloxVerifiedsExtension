@@ -1,3 +1,4 @@
+import { isOfficialBuild, UnofficialMessage } from '../Shared/Official';
 import { SiteOrigin } from '../Shared/Settings';
 import type {
 	ApiLookupResponse,
@@ -66,6 +67,7 @@ export class ApiClient {
 	}
 
 	private async request<T>(Path: string, Init: RequestInit = {}): Promise<T> {
+		if (!isOfficialBuild()) throw new ApiError(403, UnofficialMessage);
 		const Controller = new AbortController();
 		const Timer = setTimeout(() => Controller.abort(), TimeoutMs);
 		try {

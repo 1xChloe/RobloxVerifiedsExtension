@@ -52,6 +52,7 @@ async function createContexts() {
 				target: 'chrome120',
 				sourcemap: IsWatch ? 'inline' : false,
 				minify: !IsWatch,
+				define: { DevBuild: JSON.stringify(IsWatch) },
 				logLevel: 'info'
 			})
 		)
