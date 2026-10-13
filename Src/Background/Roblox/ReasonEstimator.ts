@@ -4,7 +4,7 @@ import type { SocialLink } from './RobloxApi';
 
 type Anchors = ReadonlyArray<readonly [Value: number, Score: number]>;
 
-export const EstimatorVersion = 9;
+export const EstimatorVersion = 10;
 
 export interface GroupInfo {
 	GroupId: number;
@@ -118,7 +118,8 @@ const MinListedScore = 15;
 const EligibleHours = 1_000_000;
 const HoursPerConcurrentPlayer = 24 * 90;
 const SessionHours = 0.2;
-const PeakWindowShare = 0.4;
+const PeakShareExponent = 0.75;
+const UnknownAgeShare = 0.2;
 const PeakWindowDays = 90;
 const DayMs = 24 * 60 * 60 * 1000;
 const BreadthHoursShare = 0.25;
@@ -476,10 +477,10 @@ function peakHours(Game: { Visits: number; Playing: number; Created?: string | n
 
 function peakWindowShare(Created: string | null | undefined): number {
 	const CreatedAt = Created ? Date.parse(Created) : NaN;
-	if (!Number.isFinite(CreatedAt)) return PeakWindowShare;
+	if (!Number.isFinite(CreatedAt)) return UnknownAgeShare;
 	const AgeDays = (Date.now() - CreatedAt) / DayMs;
 	if (AgeDays <= PeakWindowDays) return 1;
-	return Math.max(PeakWindowShare, Math.sqrt(PeakWindowDays / AgeDays));
+	return Math.pow(PeakWindowDays / AgeDays, PeakShareExponent);
 }
 
 function bestByHours<T extends { Visits: number; Playing: number; Created?: string | null }>(Games: T[]): { Game: T; Hours: number } | null {
