@@ -2,6 +2,8 @@ export const RobloxSelectors = {
 	ProfileName: '#profile-header-title-container-name',
 	ProfileAboutTab: '#tab-about',
 	ProfileAboutPane: 'ul.profile-tabs ~ .profile-tab-content',
+	// Roblox's tabless profile layout (behind an experiment) puts About and Creations in one column instead of tabs.
+	ProfileContent: '.profile-content',
 	ProfileHeader: '.user-profile-header',
 	VerifiedIcon: '.icon-filled-verified-check, .icon-filled-verified-backplate, [class*="verified-badge"]',
 	UserLink: 'a[href*="/users/"]',
@@ -104,7 +106,10 @@ export class RobloxPage {
 	}
 
 	static profileAboutPane(): HTMLElement | null {
-		return document.querySelector<HTMLElement>(RobloxSelectors.ProfileAboutPane);
+		return (
+			document.querySelector<HTMLElement>(RobloxSelectors.ProfileAboutPane) ??
+			document.querySelector<HTMLElement>(RobloxSelectors.ProfileContent)
+		);
 	}
 
 	static showProfileAbout(): void {
